@@ -1,0 +1,24 @@
+
+# Generated compiler files
+*.exe
+*.o
+*.obj
+*.dll
+*.so
+*.a
+*.lib
+
+# Flex/Bison generated files
+lex.yy.c
+parser.tab.c
+parser.tab.h
+
+# Build directories
+build/
+dist/
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

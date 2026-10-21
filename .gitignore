@@ -22,3 +22,14 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+
+# Java compiled files
+*.class
+
+# IntelliJ build output and module files
+out/
+*.iml
+
+# Velocis Studio generated output
+velocis-studio/out/

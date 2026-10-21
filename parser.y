@@ -9,6 +9,10 @@
     void yyerror(const char *s);
 %}
 
+%code requires {
+    typedef struct ASTNode ASTNode;
+}
+
 %union
     {
         ASTNode* node;
@@ -39,7 +43,7 @@ program:
         }
         | program statement
         {
-            $$= ast_create(AST_PROGRAM, NULL, $1, %2);
+            $$= ast_create(AST_PROGRAM, NULL, $1, $2);
             root= $$;
         }
         ;
@@ -65,19 +69,18 @@ statement:
         |BOOL IDENTIFIER ASSIGN TRUE SEMICOLON
         {
             $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_BOOL, $4, NULL, NULL), NULL);
+             ast_create(AST_BOOL, "true", NULL, NULL), NULL);
             
             free($2);
-            free($4);
         }
 
         |BOOL IDENTIFIER ASSIGN FALSE SEMICOLON
         {
             $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_BOOL, $4, NULL, NULL), NULL);
+             ast_create(AST_BOOL, "false" , NULL, NULL), NULL);
             
             free($2);
-            free($4);
+           
         }
 
         |CHAR IDENTIFIER ASSIGN IDENTIFIER SEMICOLON
@@ -100,6 +103,7 @@ statement:
         |PRINT LPAREN expression RPAREN SEMICOLON
         {
               $$ = ast_create(AST_PRINT, NULL, $3, NULL);
+               printf("%d\n", ast_evaluate($3));
         }
         ;
 
@@ -119,27 +123,23 @@ expression:
         }
         |expression PLUS expression
         {
-            $$= ast_create(AST_BINARY,"+", $1, %3);
+            $$= ast_create(AST_BINARY,"+", $1, $3);
         }
         |expression MINUS expression
         {
-            $$= ast_create(AST_BINARY,"-", $1, %3);
+            $$= ast_create(AST_BINARY,"-", $1, $3);
         }
         |expression DIVIDE expression
         {
-            $$= ast_create(AST_BINARY,"/", $1, %3);
+            $$= ast_create(AST_BINARY,"/", $1, $3);
         }
         |expression MULTIPLY expression
         {
-            $$= ast_create(AST_BINARY,"*", $1, %3);
+            $$= ast_create(AST_BINARY,"*", $1, $3);
         }
         |expression MODULO expression
         {
-            $$= ast_create(AST_BINARY,"%", $1, %3);
-        }
-        |PRINT LPAREN expression RPAREN
-        {
-            $$= ast_create(AST_PRINT,NULL, $3, NULL);
+            $$= ast_create(AST_BINARY,"%", $1, $3);
         }
         ;
 
@@ -155,14 +155,13 @@ void yyerror(const char *s)
 int main(void)
 {
     printf("Velocis Compiler.\n");
-    yyparse();
-
     if(yyparse()==0)
     {
         printf("\nAbstract Syntax Tree\n");
         ast_print(root, 0);
-        ast_free(root);
+      
     }
-
+    
+    ast_free(root);
     return 0;
 }

@@ -10,7 +10,8 @@ typedef enum {
     AST_BINARY,
     AST_BOOL,
     AST_PRINT,
-    AST_DECLARATION
+    AST_DECLARATION,
+    AST_CHAR
 }ASTNodeType;
 
 typedef struct ASTNode
@@ -28,6 +29,7 @@ ASTNode *ast_create(ASTNodeType type, const char *value,
 void ast_print(const ASTNode* node, int depth) ;
 
 void ast_free(ASTNode *node);
+int ast_evaluate(const ASTNode* node);
 
 #endif
 

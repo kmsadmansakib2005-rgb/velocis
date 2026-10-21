@@ -14,10 +14,14 @@ ASTNode *ast_create(ASTNodeType type, const char *value,
             exit(1);
         }
 
-        node->type= type;
-        node->value = strdup(value);
+        
+       // printf("DEBUG: type=%d, value=%s\n", type,
+        //  value == NULL ? "(NULL)" : value);
 
-        if(node->value==NULL)
+        node->type= type;
+        node->value = (value!=NULL) ? strdup(value): NULL;
+
+        if(node->value==NULL && value!=NULL)
         {
             free(node);
             printf("Memory Allocation Failed!\n");
@@ -93,3 +97,60 @@ void ast_free(ASTNode *node)
     free(node->value);
     free(node);
 }    
+
+int ast_evaluate(const ASTNode* node)
+{
+    if(node==NULL)
+    {
+        printf("Error: Cannot evaluate and empty AST Mode.\n");
+        exit(1);
+    }    
+
+        switch(node->type)
+        {
+            case AST_INT:
+                return atoi(node->value);
+                
+            case AST_BINARY:
+            {
+                int left= ast_evaluate(node->left);
+                int right= ast_evaluate(node->right);
+
+                if(strcmp(node->value, "+")==0)
+                {
+                    return left + right;
+                }
+                else if(strcmp(node->value, "-")==0)
+                {
+                    return left - right;
+                }
+                else if(strcmp(node->value, "*")==0)
+                {
+                    return left * right;
+                }
+                else if(strcmp(node->value, "/")==0)
+                {
+                    if(right==0)
+                    {
+                        printf("Error: Division by Zero.\n");
+                        exit(1);
+                    }
+                    return left / right;
+                }
+                 else if(strcmp(node->value, "%")==0)
+                {
+                    if(right==0)
+                    {
+                        printf("Error: Module by Zero.\n");                       
+                        exit(1);
+                    }
+                    return left % right;
+                }
+                printf("Error: Unsupported Operator %s.\n", node->value);
+                exit(1);
+            }  
+            default:  
+                printf("Error: Unsupported AST Node type.\n");
+                exit(1);
+        }
+    }

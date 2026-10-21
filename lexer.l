@@ -32,10 +32,17 @@
 "true"         {return TRUE;}
 "false"        {return FALSE;}
 
-[0-9]+"."[0-9]+ {return FLOAT_LITERAL;}
-[0-9]+         {return INT_LITERAL;}
+[0-9]+"."[0-9]+ {
+    yylval.text= strdup(yytext);
+    return FLOAT_LITERAL;}
 
-[a-zA-Z_][a-zA-Z0-9_]*  {return IDENTIFIER;}
+[0-9]+         {
+    yylval.text= strdup(yytext);
+    return INT_LITERAL;}
+
+[a-zA-Z_][a-zA-Z0-9_]*  {
+    yylval.text= strdup(yytext);
+    return IDENTIFIER;}
 
 "=="    { return EQ; }
 "!="    { return NE; }

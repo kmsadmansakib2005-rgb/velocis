@@ -11,7 +11,8 @@ typedef enum {
     AST_BOOL,
     AST_PRINT,
     AST_DECLARATION,
-    AST_CHAR
+    AST_CHAR,
+    AST_ASSIGNMENT
 }ASTNodeType;
 
 typedef struct ASTNode
@@ -23,10 +24,28 @@ typedef struct ASTNode
     struct ASTNode* right;
 }ASTNode;
 
+typedef enum
+{
+    TYPE_INT,
+    TYPE_FLOAT,
+    TYPE_CHAR,
+    TYPE_STRING,
+    TYPE_BOOL
+}DataType;
+
 typedef struct Variable
 {
     char* name;
-    int value;
+    DataType type;
+
+    union {
+        int int_value;
+        float float_value;
+        int bool_value;
+        char char_value;
+        char* string_value;
+    } value;
+
     struct Variable* next;
 } Variable;
 
@@ -38,8 +57,12 @@ void ast_print(const ASTNode* node, int depth) ;
 void ast_free(ASTNode *node);
 int ast_evaluate(const ASTNode* node);
 
-void ast_set_variable(const char* name, int value);
-int ast_get_variable(const char* name);
+void ast_set_variable(const char* name, DataType type, const char* value);
+Variable* ast_get_variable(const char* name);
+
+void ast_export(const ASTNode* node);
+void ast_execute(const ASTNode* node);
+void ast_free_variables(void);
 
 #endif
 

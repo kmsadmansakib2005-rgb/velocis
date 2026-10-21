@@ -53,8 +53,6 @@ statement:
         {
             $$=ast_create(AST_DECLARATION, $2,
              ast_create(AST_INT, $4, NULL, NULL), NULL);
-            
-            ast_set_variable($2, atoi($4));
 
             free($2);
             free($4);
@@ -105,7 +103,12 @@ statement:
         |PRINT LPAREN expression RPAREN SEMICOLON
         {
               $$ = ast_create(AST_PRINT, NULL, $3, NULL);
-               printf("%d\n", ast_evaluate($3));
+        }
+        |IDENTIFIER ASSIGN expression SEMICOLON
+        {
+            $$= ast_create(AST_ASSIGNMENT, $1, NULL, $3);
+            
+            free($1);
         }
         ;
 
@@ -159,11 +162,11 @@ int main(void)
     printf("Velocis Compiler.\n");
     if(yyparse()==0)
     {
-        printf("\nAbstract Syntax Tree\n");
-        ast_print(root, 0);
-      
+        ast_export(root);
+        ast_execute(root);
     }
     
     ast_free(root);
+    ast_free_variables();
     return 0;
 }

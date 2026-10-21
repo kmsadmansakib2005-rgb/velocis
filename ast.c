@@ -3,6 +3,55 @@
 #include<string.h>
 #include "ast.h"
 
+Variable* variables=NULL;
+
+void ast_set_variable(const char* name, int value)
+{
+    Variable* current= variables;
+    while(current!=NULL)
+    {
+        if(strcmp(current->name, name)==0)
+        {
+            current->value= value;
+            return;
+        }
+        current= current->next;
+    }
+    Variable* new_variable= malloc(sizeof(Variable));
+    if(new_variable==NULL)
+    {
+        printf("Memory Allocation failed!\n");
+        exit(1);
+    }
+
+    new_variable->name= strdup(name);
+    if(new_variable->name==NULL)
+    {
+        free(new_variable);
+        printf("Memory Allocation Failed!\n");
+        exit(1);
+    }
+
+    new_variable->value= value;
+    new_variable->next= variables;
+    variables= new_variable;
+}
+
+int ast_get_variable(const char* name)
+{
+    Variable* current= variables;
+    while(current!=NULL)
+    {
+        if(strcmp(current->name, name)==0)
+        {
+            return current->value;
+        }
+        current= current->next;
+    }
+    printf("Error: Undefined Variable: %s\n",name );
+    exit(1);
+}
+
 ASTNode *ast_create(ASTNodeType type, const char *value, 
     ASTNode* left,ASTNode* right)
     {
@@ -110,6 +159,9 @@ int ast_evaluate(const ASTNode* node)
         {
             case AST_INT:
                 return atoi(node->value);
+            
+            case AST_IDENTIFIER:
+                return ast_get_variable(node->value);
                 
             case AST_BINARY:
             {

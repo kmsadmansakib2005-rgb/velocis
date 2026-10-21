@@ -54,6 +54,8 @@ statement:
             $$=ast_create(AST_DECLARATION, $2,
              ast_create(AST_INT, $4, NULL, NULL), NULL);
             
+            ast_set_variable($2, atoi($4));
+
             free($2);
             free($4);
         }

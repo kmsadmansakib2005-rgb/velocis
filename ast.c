@@ -126,8 +126,6 @@ static Variable* find_variable(const char* name)
     return NULL;
 }
 
-
-
 void ast_set_variable(const char* name, DataType type,
                       const char* value)
 {
@@ -308,6 +306,110 @@ int ast_evaluate(const ASTNode* node)
     return 0;
 }
 
+float ast_evaluate_float(const ASTNode* node)
+{
+    if(node== NULL)
+    {
+        fprintf(stderr, "Error: Cannot evaluate an empty expression.\n");
+        return 0.0f;
+    }
+
+    switch (node->type)
+    {
+        case AST_FLOAT:
+            return (float)atof(node->value);
+        
+        case AST_INT:
+            return (float)atoi(node->value);
+        
+        case AST_IDENTIFIER:
+        {
+            Variable* variable= ast_get_variable(node->value);
+            if(variable->type==TYPE_FLOAT)
+                return variable->value.float_value;
+            
+            if(variable->type==TYPE_INT)    
+                return (float)variable->value.int_value;
+             
+            printf("Error: Variable %s is not numeric.\n", node->value);
+            exit(1);  
+            
+        } 
+        case AST_ASSIGNMENT:
+        {
+            float result= ast_evaluate_float(node->right);
+            Variable* variable=ast_get_variable(node->value);
+
+            if(variable->type!= TYPE_FLOAT)
+            {
+                printf("Error: Float assignment requires an float variable: %s\n", node->value);
+                exit(1);
+            }
+            char text[32];
+            snprintf(text, sizeof(text), "%.9g", (double)result);
+            ast_set_variable(node->value, TYPE_FLOAT, text);
+            return result;
+        }       
+        case AST_BINARY:
+        {
+            float left= ast_evaluate_float(node->left);
+            float right= ast_evaluate_float(node->right);
+
+            
+            if(strcmp(node->value, "+") == 0)
+                return left + right;
+
+            if(strcmp(node->value, "-") == 0)
+                return left - right;
+
+            if(strcmp(node->value, "*") == 0)
+                return left * right;
+
+            if(strcmp(node->value, "/") == 0)
+            {
+                if(right == 0)
+                {
+                    printf("Error: Division by zero!\n");
+                    exit(1);
+                }
+
+                return left / right;
+            }
+            printf("Error: Unsupported operator: %s", node->value)  ;
+            exit(1);   
+        }
+        default:
+            printf("Error: Unsupported operator: %s", node->value)  ;
+            exit(1);
+    }
+    return 0.0f;
+    
+}
+
+int ast_evaluate_float_expression(const ASTNode* node)
+{
+    if(node==NULL)
+    {
+        return 0;
+    }
+    if(node->type==AST_FLOAT)
+    {
+        return 1;
+    }
+
+    if(node->type==AST_IDENTIFIER)
+    {
+        Variable* variable= ast_get_variable(node->value);
+        return variable->type== TYPE_FLOAT;
+    }
+
+    if(node->type== AST_BINARY)
+    {
+        return ast_evaluate_float_expression(node->left)||
+               ast_evaluate_float_expression(node->right);
+    }
+    return 0;
+}
 
 void ast_execute(const ASTNode* node)
 {
@@ -365,8 +467,20 @@ void ast_execute(const ASTNode* node)
         }
 
         case AST_ASSIGNMENT:
-            ast_evaluate(node);
+        {
+            Variable* variable= ast_get_variable(node->value);
+
+            if(variable->type==TYPE_INT)
+            {
+                ast_evaluate(node);
+            }
+            else if(variable->type==TYPE_FLOAT)
+            {
+                ast_evaluate_float(node);
+            }
             break;
+        }    
+        
 
         case AST_PRINT:
         {
@@ -414,6 +528,18 @@ void ast_execute(const ASTNode* node)
                         break;
                 }
             }
+            else if (node->left->type == AST_BINARY)
+            {
+                
+                if(ast_evaluate_float_expression(node->left))
+                {
+                    printf("%g\n", ast_evaluate_float(node->left));
+                }
+                else
+                {
+                    printf("%d\n", ast_evaluate(node->left));
+                }    
+            }
             else
             {
                 printf("%d\n", ast_evaluate(node->left));
@@ -428,7 +554,6 @@ void ast_execute(const ASTNode* node)
 }
 
 
-/* Free all runtime variables */
 void ast_free_variables(void)
 {
     Variable* current = variables;
@@ -449,8 +574,6 @@ void ast_free_variables(void)
     variables = NULL;
 }
 
-
-/* Export AST */
 void ast_export(const ASTNode* node)
 {
     printf("----AST START----\n");

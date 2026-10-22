@@ -56,6 +56,8 @@ void ast_print(const ASTNode* node, int depth) ;
 
 void ast_free(ASTNode *node);
 int ast_evaluate(const ASTNode* node);
+float ast_evaluate_float(const ASTNode* node);
+//int ast_evaluate_float_expression(const ASTNode* node);
 
 void ast_set_variable(const char* name, DataType type, const char* value);
 Variable* ast_get_variable(const char* name);

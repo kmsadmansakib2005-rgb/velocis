@@ -7,6 +7,14 @@
 
 static Variable* variables = NULL;
 
+typedef struct SemanticSymbol
+{
+    char* name;
+    struct SemanticSymbol* next;
+}SemanticSymbol;
+
+static SemanticSymbol* semantic_symbol= NULL;
+
 
 
 ASTNode* ast_create(ASTNodeType type, const char* value,
@@ -579,4 +587,160 @@ void ast_export(const ASTNode* node)
     printf("----AST START----\n");
     ast_print(node, 0);
     printf("\n---AST END----\n");
+}
+
+static int is_declared(const ASTNode* node, const char* name)
+{
+    if(node==NULL)
+    {
+        return 0;
+    }
+    if(node->type==AST_PROGRAM)
+    {
+        if(is_declared(node->left, name))
+        {
+            return 1;
+        }
+        if(is_declared(node->right, name))
+        {
+            return 1;
+        }
+    }
+
+    if(node->type==AST_DECLARATION && node->value!=NULL &&
+        strcmp(node->value, name)==0)
+        {
+            return 1;
+        }
+    
+    return 0;    
+}
+
+static int semantic_symbol_exists(const char* name)
+{
+    SemanticSymbol* current= semantic_symbol;
+
+    while(current!=NULL)
+    {
+        if(strcmp(current->name, name)==0)
+        {
+            return 1;
+        }
+        current=current->next;
+    }
+    return 0;
+}
+
+static void semantic_add_symbol(const char* name)
+{
+    SemanticSymbol* symbol=malloc(sizeof(SemanticSymbol));
+
+    if(symbol==NULL)
+    {
+        fprintf(stderr, "Sematic error: memory allocation failed.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    symbol->name= malloc(strlen(name)+1);
+    if(symbol->name==NULL)
+    {
+        free(symbol);
+        fprintf(stderr, "Semantic error: memory allocation failed.\n");
+        exit(EXIT_FAILURE);
+    }
+    strcpy(symbol->name, name);
+    symbol->next= semantic_symbol;
+    semantic_symbol=symbol;
+
+}
+
+static void semantic_clear_symbol(void)
+{
+    SemanticSymbol* current= semantic_symbol;
+    while(current!=NULL)
+    {
+        SemanticSymbol* next=current->next;
+
+        free(current->name);
+        free(current);
+
+        current=next;
+    }
+    semantic_symbol=NULL;
+}
+
+static int semantic_analyze_node(const ASTNode* node)
+{
+    if(node==NULL)
+    {
+        return 1;
+
+    }
+    if(node->type==AST_PROGRAM)
+    {
+        if(!semantic_analyze_node(node->left))
+        {
+            return 0;
+        }
+        if(!semantic_analyze_node(node->right))
+        {
+            return 0;
+        }
+        return 1;
+    }
+    if(node->type==AST_DECLARATION)
+    {
+        if(semantic_symbol_exists(node->value))
+        {
+            fprintf(stderr, 
+                "Semantic error: Variable '%s' is already declared!\n", node->value);
+             return 0;   
+        }
+        semantic_add_symbol(node->value);
+        return 1;
+    }
+
+    if(node->type==AST_PRINT)
+    {
+        return semantic_analyze_node(node->left);
+    }
+
+    if(node->type==AST_ASSIGNMENT)
+    {
+        if(!semantic_symbol_exists(node->value))
+        {
+            fprintf(stderr,
+                 "Semantic error: Variable '%s' is not declared!", node->value);
+            return 0;     
+        }
+        return semantic_analyze_node(node->right);
+    }
+
+    if(node->type==AST_IDENTIFIER)
+    {
+        if(!semantic_symbol_exists(node->value))
+        {
+            fprintf(stderr,
+                 "Semantic error: Variable '%s' is not declared!\n", node->value); 
+            return 0;   
+        }
+        return 1;
+    }
+
+    if(node->type==AST_BINARY)
+    {
+        if(!semantic_analyze_node(node->left))
+        {
+            return 0;
+        }
+        return semantic_analyze_node(node->right);
+    }
+       
+    return 1;
+}   
+
+int ast_semantic_analysis(const ASTNode* node)
+{
+    semantic_clear_symbol();
+    return semantic_analyze_node(node);
 }

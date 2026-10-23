@@ -66,5 +66,6 @@ void ast_export(const ASTNode* node);
 void ast_execute(const ASTNode* node);
 void ast_free_variables(void);
 
-#endif
+int ast_semantic_analysis(const ASTNode* node);
 
+#endif

@@ -160,10 +160,14 @@ void yyerror(const char *s)
 int main(void)
 {
     printf("Velocis Compiler.\n");
+    
     if(yyparse()==0)
     {
-        ast_export(root);
-        ast_execute(root);
+       if(ast_semantic_analysis(root))
+       {
+         ast_export(root);
+         ast_execute(root);
+       }
     }
     
     ast_free(root);

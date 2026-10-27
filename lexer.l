@@ -6,6 +6,7 @@
 #include<stdlib.h>
 #include<string.h>
 #include "parser.tab.h"
+int lexical_error= 0;
 
 %}
 %%
@@ -31,6 +32,18 @@
 "input"        {return INPUT;} 
 "true"         {return TRUE;}
 "false"        {return FALSE;}
+
+[0-9]+\.[0-9]+\.[0-9]+ {
+    lexical_error=1;
+    printf("Lexical Error at line %d: Malformed numeric literal '%s'\n",
+           yylineno, yytext);
+}
+
+[0-9]+(\.[0-9]+)*[a-zA-Z_][a-zA-Z0-9_]* {
+    lexical_error=1;
+    printf("Lexical Error at line %d: Malformed numeric literal '%s'\n",
+           yylineno, yytext);
+}
 
 [0-9]+"."[0-9]+ {
     yylval.text= strdup(yytext);
@@ -69,16 +82,29 @@
 ","    { return COMMA; }
 
 
-\"([^\\\"\n]|\\.)*\"    { return STRING_LITERAL; }
+\"([^\\\"\n]|\\.)*\"    {
+    yylval.text = (char*)malloc(yyleng - 1);
+    strncpy(yylval.text, yytext + 1, yyleng - 2);
+    yylval.text[yyleng - 2] = '\0';
+    return STRING_LITERAL; }
 
 \"([^\\\"\n]|\\.)*\n    {
-    printf("Lexical Error at line %d: Unterminated string literal\n", yylineno);
+    lexical_error=1;
+    printf("Lexical Error at line %d: Unterminated string literal\n",
+     yylineno);
+}
+
+\"([^\\\"\n]|\\.)* {
+    lexical_error = 1;
+    printf("Lexical Error at line %d: Unterminated string literal\n",
+           yylineno);
 }
 
 
-.           {
-    printf("Lexical Error at line %d: Illegal Charecter '%s'\n",yylineno,yytext);
-
+. {
+    lexical_error = 1;
+    printf("Lexical Error at line %d: Illegal Character '%s'\n",
+           yylineno, yytext);
 }
 
 %%

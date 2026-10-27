@@ -7,6 +7,7 @@
 
     int yylex(void);
     void yyerror(const char *s);
+    extern int lexical_error;
 %}
 
 %code requires {
@@ -92,7 +93,7 @@ statement:
             free($4);
         }
         
-        |STRING IDENTIFIER ASSIGN IDENTIFIER SEMICOLON
+        |STRING IDENTIFIER ASSIGN STRING_LITERAL SEMICOLON
         {
             $$=ast_create(AST_DECLARATION, $2,
              ast_create(AST_IDENTIFIER, $4, NULL, NULL), NULL);
@@ -154,7 +155,10 @@ expression:
 
 void yyerror(const char *s)
 {
-    fprintf(stderr, "Syntax error: %s\n", s);
+    if(!lexical_error)
+    {
+        fprintf(stderr, "Syntax error: %s\n", s);
+    }
 }
 
 int main(void)

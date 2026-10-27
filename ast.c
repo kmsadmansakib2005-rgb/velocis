@@ -18,7 +18,7 @@ static SemanticSymbol* semantic_symbol= NULL;
 
 
 ASTNode* ast_create(ASTNodeType type, const char* value,
-                    ASTNode* left, ASTNode* right)
+                    ASTNode* left, ASTNode* right, int line_number)
 {
     ASTNode* node = malloc(sizeof(ASTNode));
 
@@ -30,6 +30,7 @@ ASTNode* ast_create(ASTNodeType type, const char* value,
 
     node->type = type;
     node->value = value != NULL ? strdup(value) : NULL;
+    node->line_number= line_number;
     node->left = left;
     node->right = right;
 
@@ -44,7 +45,7 @@ ASTNode* ast_create(ASTNodeType type, const char* value,
 }
 
 
-/* Print the AST */
+//print the ast
 void ast_print(const ASTNode* node, int depth)
 {
     if(node == NULL)
@@ -56,47 +57,47 @@ void ast_print(const ASTNode* node, int depth)
     switch(node->type)
     {
         case AST_PROGRAM:
-            printf("PROGRAM\n");
+            printf("PROGRAM (line: %d)\n", node->line_number);
             break;
 
         case AST_INT:
-            printf("INTEGER: %s\n", node->value);
+            printf("INTEGER: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_FLOAT:
-            printf("FLOAT: %s\n", node->value);
+            printf("FLOAT: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_IDENTIFIER:
-            printf("IDENTIFIER: %s\n", node->value);
+            printf("IDENTIFIER: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_BINARY:
-            printf("BINARY: %s\n", node->value);
+            printf("BINARY: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_BOOL:
-            printf("BOOLEAN: %s\n", node->value);
+            printf("BOOLEAN: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_PRINT:
-            printf("PRINT\n");
+            printf("PRINT (line: %d)\n", node->line_number);
             break;
 
         case AST_DECLARATION:
-            printf("DECLARATION: %s\n", node->value);
+            printf("DECLARATION: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_CHAR:
-            printf("CHARACTER: %s\n", node->value);
+            printf("CHARACTER: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         case AST_ASSIGNMENT:
-            printf("ASSIGNMENT: %s\n", node->value);
+            printf("ASSIGNMENT: %s (line: %d)\n", node->value, node->line_number);
             break;
 
         default:
-            printf("UNKNOWN NODE\n");
+            printf("UNKNOWN NODE (line: %d)\n", node->line_number);
             break;
     }
 

@@ -1,0 +1,230 @@
+[1mdiff --git a/ast.c b/ast.c[m
+[1mindex fd17b37..720a8f2 100644[m
+[1m--- a/ast.c[m
+[1m+++ b/ast.c[m
+[36m@@ -7,6 +7,14 @@[m
+ [m
+ static Variable* variables = NULL;[m
+ [m
+[32m+[m[32mtypedef struct SemanticSymbol[m
+[32m+[m[32m{[m
+[32m+[m[32m    char* name;[m
+[32m+[m[32m    struct SemanticSymbol* next;[m
+[32m+[m[32m}SemanticSymbol;[m
+[32m+[m
+[32m+[m[32mstatic SemanticSymbol* semantic_symbol= NULL;[m
+[32m+[m
+ [m
+ [m
+ ASTNode* ast_create(ASTNodeType type, const char* value,[m
+[36m@@ -580,3 +588,159 @@[m [mvoid ast_export(const ASTNode* node)[m
+     ast_print(node, 0);[m
+     printf("\n---AST END----\n");[m
+ }[m
+[32m+[m
+[32m+[m[32mstatic int is_declared(const ASTNode* node, const char* name)[m
+[32m+[m[32m{[m
+[32m+[m[32m    if(node==NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return 0;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    if(node->type==AST_PROGRAM)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(is_declared(node->left, name))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 1;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        if(is_declared(node->right, name))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 1;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if(node->type==AST_DECLARATION && node->value!=NULL &&[m
+[32m+[m[32m        strcmp(node->value, name)==0)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 1;[m
+[32m+[m[32m        }[m
+[32m+[m[41m    [m
+[32m+[m[32m    return 0;[m[41m    [m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mstatic int semantic_symbol_exists(const char* name)[m
+[32m+[m[32m{[m
+[32m+[m[32m    SemanticSymbol* current= semantic_symbol;[m
+[32m+[m
+[32m+[m[32m    while(current!=NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(strcmp(current->name, name)==0)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 1;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        current=current->next;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    return 0;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mstatic void semantic_add_symbol(const char* name)[m
+[32m+[m[32m{[m
+[32m+[m[32m    SemanticSymbol* symbol=malloc(sizeof(SemanticSymbol));[m
+[32m+[m
+[32m+[m[32m    if(symbol==NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        fprintf(stderr, "Sematic error: memory allocation failed.\n");[m
+[32m+[m[32m        exit(EXIT_FAILURE);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    symbol->name= malloc(strlen(name)+1);[m
+[32m+[m[32m    if(symbol->name==NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        free(symbol);[m
+[32m+[m[32m        fprintf(stderr, "Semantic error: memory allocation failed.\n");[m
+[32m+[m[32m        exit(EXIT_FAILURE);[m
+[32m+[m[32m    }[m
+[32m+[m[32m    strcpy(symbol->name, name);[m
+[32m+[m[32m    symbol->next= semantic_symbol;[m
+[32m+[m[32m    semantic_symbol=symbol;[m
+[32m+[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mstatic void semantic_clear_symbol(void)[m
+[32m+[m[32m{[m
+[32m+[m[32m    SemanticSymbol* current= semantic_symbol;[m
+[32m+[m[32m    while(current!=NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        SemanticSymbol* next=current->next;[m
+[32m+[m
+[32m+[m[32m        free(current->name);[m
+[32m+[m[32m        free(current);[m
+[32m+[m
+[32m+[m[32m        current=next;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    semantic_symbol=NULL;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mstatic int semantic_analyze_node(const ASTNode* node)[m
+[32m+[m[32m{[m
+[32m+[m[32m    if(node==NULL)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return 1;[m
+[32m+[m
+[32m+[m[32m    }[m
+[32m+[m[32m    if(node->type==AST_PROGRAM)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(!semantic_analyze_node(node->left))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 0;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        if(!semantic_analyze_node(node->right))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 0;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        return 1;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    if(node->type==AST_DECLARATION)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(semantic_symbol_exists(node->value))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            fprintf(stderr,[m[41m [m
+[32m+[m[32m                "Semantic error: Variable '%s' is already declared!\n", node->value);[m
+[32m+[m[32m             return 0;[m[41m   [m
+[32m+[m[32m        }[m
+[32m+[m[32m        semantic_add_symbol(node->value);[m
+[32m+[m[32m        return 1;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if(node->type==AST_PRINT)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        return semantic_analyze_node(node->left);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if(node->type==AST_ASSIGNMENT)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(!semantic_symbol_exists(node->value))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            fprintf(stderr,[m
+[32m+[m[32m                 "Semantic error: Variable '%s' is not declared!", node->value);[m
+[32m+[m[32m            return 0;[m[41m     [m
+[32m+[m[32m        }[m
+[32m+[m[32m        return semantic_analyze_node(node->right);[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if(node->type==AST_IDENTIFIER)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(!semantic_symbol_exists(node->value))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            fprintf(stderr,[m
+[32m+[m[32m                 "Semantic error: Variable '%s' is not declared!\n", node->value);[m[41m [m
+[32m+[m[32m            return 0;[m[41m   [m
+[32m+[m[32m        }[m
+[32m+[m[32m        return 1;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    if(node->type==AST_BINARY)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        if(!semantic_analyze_node(node->left))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            return 0;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        return semantic_analyze_node(node->right);[m
+[32m+[m[32m    }[m
+[32m+[m[41m       [m
+[32m+[m[32m    return 1;[m
+[32m+[m[32m}[m[41m   [m
+[32m+[m
+[32m+[m[32mint ast_semantic_analysis(const ASTNode* node)[m
+[32m+[m[32m{[m
+[32m+[m[32m    semantic_clear_symbol();[m
+[32m+[m[32m    return semantic_analyze_node(node);[m
+[32m+[m[32m}[m
+[1mdiff --git a/ast.h b/ast.h[m
+[1mindex 52e6ada..c89ebc1 100644[m
+[1m--- a/ast.h[m
+[1m+++ b/ast.h[m
+[36m@@ -66,5 +66,6 @@[m [mvoid ast_export(const ASTNode* node);[m
+ void ast_execute(const ASTNode* node);[m
+ void ast_free_variables(void);[m
+ [m
+[31m-#endif[m
+[32m+[m[32mint ast_semantic_analysis(const ASTNode* node);[m
+ [m
+[32m+[m[32m#endif[m
+\ No newline at end of file[m
+[1mdiff --git a/parser.y b/parser.y[m
+[1mindex 7ba9267..a58b0ed 100644[m
+[1m--- a/parser.y[m
+[1m+++ b/parser.y[m
+[36m@@ -160,10 +160,14 @@[m [mvoid yyerror(const char *s)[m
+ int main(void)[m
+ {[m
+     printf("Velocis Compiler.\n");[m
+[32m+[m[41m    [m
+     if(yyparse()==0)[m
+     {[m
+[31m-        ast_export(root);[m
+[31m-        ast_execute(root);[m
+[32m+[m[32m       if(ast_semantic_analysis(root))[m
+[32m+[m[32m       {[m
+[32m+[m[32m         ast_export(root);[m
+[32m+[m[32m         ast_execute(root);[m
+[32m+[m[32m       }[m
+     }[m
+     [m
+     ast_free(root);[m
+[1mdiff --git a/test.vls b/test.vls[m
+[1mindex 8bf6bfe..64f4c75 100644[m
+[1m--- a/test.vls[m
+[1m+++ b/test.vls[m
+[36m@@ -1,7 +1,3 @@[m
+[31m-int a = 5;[m
+[31m-int b = 2;[m
+[31m-print(a / b);[m
+[31m-[m
+[31m-float x = 5.0;[m
+[31m-float y = 2.0;[m
+[31m-print(x / y);[m
+\ No newline at end of file[m
+[32m+[m[32mage = 10;[m
+[32m+[m[32mint age = 20;[m
+[32m+[m[32mprint(age);[m
+\ No newline at end of file[m

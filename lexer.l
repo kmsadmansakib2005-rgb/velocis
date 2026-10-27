@@ -6,6 +6,13 @@
 #include<stdlib.h>
 #include<string.h>
 #include "parser.tab.h"
+
+#define YY_USER_ACTION \
+    yylloc.first_line = yylineno; \
+    yylloc.last_line = yylineno; \
+    yylloc.first_column = 1; \
+    yylloc.last_column = yyleng;
+
 int lexical_error= 0;
 
 %}

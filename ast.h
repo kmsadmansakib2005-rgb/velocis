@@ -19,6 +19,7 @@ typedef struct ASTNode
 {
     ASTNodeType type;
     char* value;
+    int line_number;
 
     struct ASTNode* left;
     struct ASTNode* right;
@@ -50,7 +51,7 @@ typedef struct Variable
 } Variable;
 
 ASTNode *ast_create(ASTNodeType type, const char *value, 
-    ASTNode* left,ASTNode* right);
+    ASTNode* left,ASTNode* right, int line_number);
 
 void ast_print(const ASTNode* node, int depth) ;
 

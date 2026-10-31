@@ -12,6 +12,7 @@ typedef enum {
     AST_PRINT,
     AST_DECLARATION,
     AST_CHAR,
+    AST_STRING,
     AST_ASSIGNMENT
 }ASTNodeType;
 

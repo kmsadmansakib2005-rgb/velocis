@@ -103,7 +103,7 @@ statement:
         |STRING IDENTIFIER ASSIGN STRING_LITERAL SEMICOLON
         {
             $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_IDENTIFIER, $4, NULL, NULL, @4.first_line), 
+             ast_create(AST_STRING, $4, NULL, NULL, @4.first_line), 
              NULL,@1.first_line);
             
             free($2);
@@ -156,8 +156,6 @@ expression:
             $$= ast_create(AST_BINARY,"%", $1, $3, @2.first_line);
         }
         ;
-
-
 
 %%
 

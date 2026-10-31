@@ -1,9 +1,13 @@
 %{
+   
     #include<stdio.h>
+    #include<string.h>
     #include<stdlib.h>
     #include "ast.h"
 
     ASTNode* root= NULL;
+
+    int syntax_error=0;
 
     int yylex(void);
     void yyerror(const char *s);
@@ -59,63 +63,42 @@ program:
         ;
 
 statement:
-        INT IDENTIFIER ASSIGN INT_LITERAL SEMICOLON
-        {
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_INT, $4, NULL, NULL, @4.first_line),
-             NULL, @1.first_line);
 
-            free($2);
-            free($4);
-        }
-        |FLOAT IDENTIFIER ASSIGN FLOAT_LITERAL SEMICOLON
+        INT IDENTIFIER ASSIGN expression SEMICOLON
         {
-            
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_FLOAT, $4, NULL, NULL, @4.first_line),
-              NULL, @1.first_line);
-            
-            free($2);
-            free($4);
-        }
-        |BOOL IDENTIFIER ASSIGN TRUE SEMICOLON
-        {
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_BOOL, "true", NULL, NULL, @4.first_line), NULL,
-             @1.first_line);
-            
+            $$ = ast_create(AST_DECLARATION, $2, $4, NULL, @1.first_line);
+            $$->data_type= strdup("int");
             free($2);
         }
 
-        |BOOL IDENTIFIER ASSIGN FALSE SEMICOLON
+        | FLOAT IDENTIFIER ASSIGN expression SEMICOLON
         {
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_BOOL, "false" , NULL, NULL, @4.first_line),
-             NULL, @1.first_line);
-            
+            $$ = ast_create(AST_DECLARATION, $2, $4, NULL, @1.first_line);
+            $$->data_type= strdup("float");
             free($2);
-           
         }
 
-        |CHAR IDENTIFIER ASSIGN IDENTIFIER SEMICOLON
+        | BOOL IDENTIFIER ASSIGN expression SEMICOLON
         {
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_CHAR, $4, NULL, NULL, @4.first_line),
-              NULL, @1.first_line);
-            
+            $$ = ast_create(AST_DECLARATION, $2, $4, NULL, @1.first_line);
+            $$->data_type= strdup("bool");
             free($2);
-            free($4);
         }
-        
-        |STRING IDENTIFIER ASSIGN STRING_LITERAL SEMICOLON
+
+        | CHAR IDENTIFIER ASSIGN expression SEMICOLON
         {
-            $$=ast_create(AST_DECLARATION, $2,
-             ast_create(AST_STRING, $4, NULL, NULL, @4.first_line), 
-             NULL,@1.first_line);
-            
+            $$ = ast_create(AST_DECLARATION, $2, $4, NULL, @1.first_line);
+            $$->data_type= strdup("char");
             free($2);
-            free($4);
         }
+
+        | STRING IDENTIFIER ASSIGN expression SEMICOLON
+        {
+            $$ = ast_create(AST_DECLARATION, $2, $4, NULL, @1.first_line);
+            $$->data_type= strdup("string");
+            free($2);
+        }
+
         |PRINT LPAREN expression RPAREN SEMICOLON
         {
               $$ = ast_create(AST_PRINT, NULL, $3, NULL, @1.first_line);
@@ -140,14 +123,20 @@ statement:
             $$= ast_create(AST_DO_WHILE, NULL, $2, $5, @1.first_line);
 
         }
+        |error SEMICOLON
+        {
+            syntax_error=1;
+            yyerror;
+            $$=NULL;
+        }
         ;
 
 block:
         LBRACE block_statement RBRACE
-            {
-                $$= $2;
-            }
-            ;
+        {
+            $$ = $2;
+        }
+        ;
 block_statement:
         {
             $$= ast_create(AST_PROGRAM, NULL, NULL, NULL, @$.first_line);  
@@ -251,6 +240,7 @@ void yyerror(const char *s)
 {
     if(!lexical_error)
     {
+        syntax_error=1;
         fprintf(stderr, "Syntax error at line %d: %s\n",
         yylloc.first_line,s);
     }
@@ -262,7 +252,7 @@ int main(void)
 
     int parse_status= yyparse();
     
-    if(parse_status==0 && lexical_error==0)
+    if(parse_status==0 && lexical_error==0 &&syntax_error==0)
     {
        if(ast_semantic_analysis(root))
        {

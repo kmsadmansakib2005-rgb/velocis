@@ -1,6 +1,9 @@
-int i = 1;
+int a = 10
+int b = 20;
 
-do {
-    print(i);
-    i = i + 1;
-} while (i <= 5);
+print(a);
+
+int c = ;
+int d = 40;
+
+print(d);

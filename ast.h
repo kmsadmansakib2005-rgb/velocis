@@ -23,6 +23,7 @@ typedef struct ASTNode
 {
     ASTNodeType type;
     char* value;
+    char* data_type;
     int line_number;
 
     struct ASTNode* left;

@@ -27,13 +27,20 @@
 %token TRUE FALSE
 
 %token <text> INT_LITERAL FLOAT_LITERAL STRING_LITERAL IDENTIFIER
-%type <node> program expression statement
+%type <node> program expression statement block block_statement
 
 %token EQ NE LE GE LT GT AND OR NOT ASSIGN
 %token PLUS MINUS MULTIPLY DIVIDE MODULO
 
+%left OR
+%left AND
+%left EQ NE
+%left LT GT LE GE
 %left PLUS MINUS
 %left MULTIPLY DIVIDE MODULO
+%right NOT
+%nonassoc IF_WITHOUT_ELSE
+%nonassoc ELSE
 
 %token LPAREN RPAREN LBRACE RBRACE SEMICOLON COMMA
 
@@ -119,8 +126,37 @@ statement:
             
             free($1);
         }
+        |IF LPAREN expression RPAREN block %prec IF_WITHOUT_ELSE
+        {
+            $$= ast_create(AST_IF, NULL, $3, $5, @1.first_line);
+        }
+        |IF LPAREN expression RPAREN block ELSE block
+        {
+            $$= ast_create(AST_IF, NULL, $3, $5, @1.first_line);
+            $$->third= $7;
+        }
+        |DO block WHILE LPAREN expression RPAREN SEMICOLON
+        {
+            $$= ast_create(AST_DO_WHILE, NULL, $2, $5, @1.first_line);
+
+        }
         ;
 
+block:
+        LBRACE block_statement RBRACE
+            {
+                $$= $2;
+            }
+            ;
+block_statement:
+        {
+            $$= ast_create(AST_PROGRAM, NULL, NULL, NULL, @$.first_line);  
+        }
+        | block_statement statement
+        {
+            $$= ast_create(AST_PROGRAM, NULL, $1, $2,@2.first_line);
+        }
+         
 expression:
         INT_LITERAL
         {
@@ -154,6 +190,58 @@ expression:
         |expression MODULO expression
         {
             $$= ast_create(AST_BINARY,"%", $1, $3, @2.first_line);
+        }
+        |expression EQ expression
+        {
+            $$=ast_create(AST_BINARY, "==", $1, $3, @2.first_line);
+        }
+        |expression NE expression
+        {
+            $$=ast_create(AST_BINARY, "!=", $1, $3, @2.first_line);
+        }
+        |expression LT expression
+        {
+            $$=ast_create(AST_BINARY, "<", $1, $3, @2.first_line);
+        }
+        |expression GT expression
+        {
+            $$=ast_create(AST_BINARY, ">", $1, $3, @2.first_line);
+        }
+        |expression LE expression
+        {
+            $$=ast_create(AST_BINARY, "<=", $1, $3, @2.first_line);
+        }
+        |expression GE expression
+        {
+            $$=ast_create(AST_BINARY, ">=", $1, $3, @2.first_line);
+        }
+        |expression AND expression
+        {
+            $$=ast_create(AST_BINARY, "&&", $1, $3, @2.first_line);
+        }
+        |expression OR expression        {
+            $$=ast_create(AST_BINARY, "||", $1, $3, @2.first_line);
+        }
+        |NOT expression
+        {
+            $$=ast_create(AST_UNARY, "!", $2, NULL, @1.first_line);
+        }
+        |TRUE
+        {
+            $$=ast_create(AST_BOOL, "true", NULL, NULL, @1.first_line);
+        }
+        |FALSE
+        {
+            $$=ast_create(AST_BOOL, "false", NULL, NULL, @1.first_line);
+        }
+        |LPAREN expression RPAREN
+        {
+            $$=$2;
+        }
+        |STRING_LITERAL
+        {
+            $$=ast_create(AST_STRING, $1, NULL, NULL, @1.first_line);
+            free($1);
         }
         ;
 

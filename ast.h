@@ -8,12 +8,15 @@ typedef enum {
     AST_FLOAT,
     AST_IDENTIFIER,
     AST_BINARY,
+    AST_UNARY,
     AST_BOOL,
     AST_PRINT,
     AST_DECLARATION,
     AST_CHAR,
     AST_STRING,
-    AST_ASSIGNMENT
+    AST_ASSIGNMENT,
+    AST_IF,
+    AST_DO_WHILE
 }ASTNodeType;
 
 typedef struct ASTNode
@@ -24,6 +27,7 @@ typedef struct ASTNode
 
     struct ASTNode* left;
     struct ASTNode* right;
+    struct ASTNode* third;
 }ASTNode;
 
 typedef enum

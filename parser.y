@@ -13,6 +13,7 @@
     void yyerror(const char *s);
     extern int lexical_error;
     extern FILE *yyin;
+    extern char* yytext;
 %}
 
 %code requires {
@@ -256,40 +257,145 @@ void yyerror(const char *s)
     }
 }
 
+const char* token_name(int token)
+{
+    switch(token)
+    {
+        case INT: return "INT";
+        case FLOAT: return "FLOAT";
+        case CHAR: return "CHAR";
+        case STRING: return "STRING";
+        case BOOL: return "BOOL";
+
+        case DO: return "DO";
+        case WHILE: return "WHILE";
+        case FOR: return "FOR";
+        case IF: return "IF";
+        case ELSE: return "ELSE";
+        case PRINT: return "PRINT";
+        case INPUT: return "INPUT";
+
+        case TRUE: return "TRUE";
+        case FALSE: return "FALSE";
+
+        case INT_LITERAL: return "INT_LITERAL";
+        case FLOAT_LITERAL: return "FLOAT_LITERAL";
+        case CHAR_LITERAL: return "CHAR_LITERAL";
+        case STRING_LITERAL: return "STRING_LITERAL";
+        case IDENTIFIER: return "IDENTIFIER";
+
+        case EQ: return "EQ";
+        case NE: return "NE";
+        case LE: return "LE";
+        case GE: return "GE";
+        case LT: return "LT";
+        case GT: return "GT";
+        case AND: return "AND";
+        case OR: return "OR";
+        case NOT: return "NOT";
+        case ASSIGN: return "ASSIGN";
+
+        case PLUS: return "PLUS";
+        case MINUS: return "MINUS";
+        case MULTIPLY: return "MULTIPLY";
+        case DIVIDE: return "DIVIDE";
+        case MODULO: return "MODULO";
+
+        case LPAREN: return "LPAREN";
+        case RPAREN: return "RPAREN";
+        case LBRACE: return "LBRACE";
+        case RBRACE: return "RBRACE";
+        case SEMICOLON: return "SEMICOLON";
+        case COMMA: return "COMMA";
+
+        default: return "UNKNOWN";
+    }
+}
+
 int main(int argc, char* argv[])
 {
     printf("Velocis Compiler.\n");
 
-    if(argc<2)
+    int token_mode = 0;
+    int ast_mode=0;
+    const char* source_file = NULL;
+
+    if(argc == 3 && strcmp(argv[1], "--tokens") == 0)
+    {
+        token_mode = 1;
+        source_file = argv[2];
+    }
+    else if(argc==3 && strcmp(argv[1], "--ast")==0)
+    {
+        ast_mode=1;
+        source_file= argv[2];
+    }
+    else if(argc == 2)
+    {
+        source_file = argv[1];
+    }
+    else
     {
         printf("Usage: velocis <source_file.vls>\n");
+        printf("       velocis --tokens <source_file.vls>\n");
+        printf("       velocis --ast <source_file.vls>\n");
         return 1;
     }
-    yyin= fopen(argv[1], "r");
 
-    if(yyin==NULL)
+    yyin = fopen(source_file, "r");
+
+    if(yyin == NULL)
     {
-        printf("Error: Cannot open the source file.\n");
+        perror("Error opening source file");
         return 1;
     }
 
-    int parse_status= yyparse();
+    if(token_mode)
+    {
+        int token;
+
+        while((token = yylex()) != 0)
+        {
+            printf("TOKEN\t%d\t%s\t%s\n",
+                   yylloc.first_line,
+                   token_name(token),
+                   yytext);
+
+            if(token == INT_LITERAL ||
+               token == FLOAT_LITERAL ||
+               token == CHAR_LITERAL ||
+               token == STRING_LITERAL ||
+               token == IDENTIFIER)
+            {
+                free(yylval.text);
+            }
+        }
+
+        fclose(yyin);
+        return 0;
+    }
+
+    int parse_status = yyparse();
     fclose(yyin);
-    
-    if(parse_status==0 && lexical_error==0 &&syntax_error==0)
+
+    if(parse_status == 0 && lexical_error == 0 && syntax_error == 0)
     {
-       if(ast_semantic_analysis(root))
-       {
-         ast_export(root);
-         ast_execute(root);
-       }
+        if(ast_semantic_analysis(root))
+        {
+           if(ast_mode)
+           {
+            ast_export(root);
+           }
+            ast_execute(root);
+        }
     }
-    else if(lexical_error!=0)
+    else if(lexical_error != 0)
     {
         printf("Compilation stopped due to lexical errors.\n");
     }
-    
+
     ast_free(root);
     ast_free_variables();
+
     return 0;
 }

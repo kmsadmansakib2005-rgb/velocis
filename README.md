@@ -45,4 +45,4 @@ print(age + 5);
 
 ## Academic Context
 
-Developed as a project for the Compiler Laboratory course at Bangladesh University of Professionals (BUP).
+Developed as a project for the Compiler Laboratory course at Bangladesh University of Professionals (BUP) by K. M. Sadman Sakib

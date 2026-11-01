@@ -19,12 +19,12 @@
 - [x] Initial lexer rules for keywords, identifiers, literals, operators, and punctuation
 - [x] Initial Bison parser structure
 - [x] Basic declaration and arithmetic-expression grammar
-- [ ] Complete lexical error handling
-- [ ] Operator precedence and grammar validation
-- [ ] AST construction
-- [ ] Semantic analysis
+- [x] Complete lexical error handling
+- [x] Operator precedence and grammar validation
+- [x] AST construction
+- [x] Semantic analysis
 - [ ] LLVM integration
-- [ ] Testing and documentation
+- [x] Testing and documentation
 
 ## Example Syntax
 

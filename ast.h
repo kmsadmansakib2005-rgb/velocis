@@ -1,8 +1,9 @@
+
 #ifndef AST_H
 #define AST_H
 
-
-typedef enum {
+typedef enum
+{
     AST_PROGRAM,
     AST_INT,
     AST_FLOAT,
@@ -18,19 +19,19 @@ typedef enum {
     AST_IF,
     AST_DO_WHILE,
     AST_INPUT
-}ASTNodeType;
+} ASTNodeType;
 
 typedef struct ASTNode
 {
     ASTNodeType type;
-    char* value;
-    char* data_type;
+    char *value;
+    char *data_type;
     int line_number;
 
-    struct ASTNode* left;
-    struct ASTNode* right;
-    struct ASTNode* third;
-}ASTNode;
+    struct ASTNode *left;
+    struct ASTNode *right;
+    struct ASTNode *third;
+} ASTNode;
 
 typedef enum
 {
@@ -39,41 +40,58 @@ typedef enum
     TYPE_CHAR,
     TYPE_STRING,
     TYPE_BOOL
-}DataType;
+} DataType;
+
 
 typedef struct Variable
 {
-    char* name;
+    char *name;
     DataType type;
 
-    union {
+    union
+    {
         int int_value;
         float float_value;
         int bool_value;
         char char_value;
-        char* string_value;
+        char *string_value;
     } value;
 
-    struct Variable* next;
+    int scope_level;
+    int declaration_line;
+    int initialized;
+
+    struct Variable *next;
 } Variable;
 
-ASTNode *ast_create(ASTNodeType type, const char *value, 
-    ASTNode* left,ASTNode* right, int line_number);
+ASTNode *ast_create(
+    ASTNodeType type,
+    const char *value,
+    ASTNode *left,
+    ASTNode *right,
+    int line_number
+);
 
-void ast_print(const ASTNode* node, int depth) ;
-
+void ast_print(const ASTNode *node, int depth);
 void ast_free(ASTNode *node);
-int ast_evaluate(const ASTNode* node);
-float ast_evaluate_float(const ASTNode* node);
-//int ast_evaluate_float_expression(const ASTNode* node);
+void ast_export(const ASTNode *node);
 
-void ast_set_variable(const char* name, DataType type, const char* value);
-Variable* ast_get_variable(const char* name);
 
-void ast_export(const ASTNode* node);
-void ast_execute(const ASTNode* node);
+int ast_evaluate(const ASTNode *node);
+float ast_evaluate_float(const ASTNode *node);
+
+void ast_set_variable(
+    const char *name,
+    DataType type,
+    const char *value
+);
+
+Variable *ast_get_variable(const char *name);
+
+void ast_execute(const ASTNode *node);
 void ast_free_variables(void);
 
-int ast_semantic_analysis(const ASTNode* node);
+/* Semantic analysis */
+int ast_semantic_analysis(const ASTNode *node);
 
 #endif

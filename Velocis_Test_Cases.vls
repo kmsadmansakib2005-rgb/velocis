@@ -1,0 +1,57 @@
+// Velocis Mini - Compiler Lab Test Cases
+// TC-01: Integer declaration, arithmetic, and printing
+int a = 10;
+int b = 20;
+int sum = a + b;
+print(sum);
+
+// TC-02: Float arithmetic
+float x = 5.5;
+float y = 2.5;
+float result = x + y;
+print(result);
+
+// TC-03: Boolean expressions
+bool p = true;
+bool q = false;
+print(p);
+print(q);
+print(p && q);
+print(p || q);
+
+// TC-04: If-else statement
+int age = 20;
+if (age >= 18) {
+    print(1);
+} else {
+    print(0);
+}
+
+// TC-05: Do-while loop
+int i = 1;
+do {
+    print(i);
+    i = i + 1;
+} while (i <= 3);
+
+// TC-06: Undeclared variable
+int known = 10;
+print(known);
+print(unknown);
+
+// TC-07: Uninitialized variable
+int uninitialized;
+print(uninitialized);
+
+// TC-08: Type mismatch
+int number = 10;
+string name = "Sakib";
+number = name;
+
+// TC-09: Duplicate declaration
+int duplicate = 10;
+int duplicate = 20;
+
+// TC-10: Syntax error - missing semicolon
+int missing_semicolon = 10
+print(missing_semicolon);

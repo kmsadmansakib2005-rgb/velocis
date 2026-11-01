@@ -32,6 +32,7 @@ public class VelocisStudio {
     private static JFrame frame;
     private static JTextArea editor;
     private static JTextArea outputArea;
+    private static JTextArea activityArea;
     private static JTextField inputField;
     private static JLabel statusLabel;
 
@@ -48,10 +49,18 @@ public class VelocisStudio {
 
     private static void createGUI() {
 
+
+
         frame = new JFrame("Velocis Mini | Compiler Studio");
+
+        ImageIcon appIcon = new ImageIcon(
+                VelocisStudio.class.getResource("Velocis-icon.png")
+        );
+        frame.setIconImage(appIcon.getImage());
+
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1200, 760);
-        frame.setMinimumSize(new Dimension(900, 600));
+        frame.setSize(1350, 780);
+        frame.setMinimumSize(new Dimension(1050, 650));
         frame.setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout(12, 12));
@@ -71,7 +80,7 @@ public class VelocisStudio {
         logo.setForeground(TEXT);
 
         JLabel subtitle = new JLabel(
-                "COMPILER STUDIO  |  CSE COMPILER LABORATORY"
+                "COMPILER STUDIO | FROM CODE TO CLARITY"
         );
         subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         subtitle.setForeground(MUTED);
@@ -104,7 +113,7 @@ public class VelocisStudio {
         header.add(branding, BorderLayout.WEST);
         header.add(actions, BorderLayout.EAST);
 
-        // EDITOR
+        // SOURCE EDITOR
         editor = new JTextArea();
 
         editor.setFont(new Font("Consolas", Font.PLAIN, 18));
@@ -128,7 +137,44 @@ public class VelocisStudio {
         );
         editorScroll.getViewport().setBackground(EDITOR_BG);
 
-        // OUTPUT
+        // COMPILER ACTIVITY PANEL
+        activityArea = new JTextArea();
+
+        activityArea.setEditable(false);
+        activityArea.setFont(new Font("Consolas", Font.PLAIN, 13));
+        activityArea.setForeground(BLUE);
+        activityArea.setBackground(EDITOR_BG);
+        activityArea.setCaretColor(TEXT);
+        activityArea.setLineWrap(true);
+        activityArea.setWrapStyleWord(true);
+        activityArea.setBorder(new EmptyBorder(14, 14, 14, 14));
+
+        activityArea.setText(
+                "Compiler activity will appear here.\n\n" +
+                        "Run your program to see parser activity,\n" +
+                        "syntax errors and panic-mode recovery."
+        );
+
+        JScrollPane activityScroll = new JScrollPane(activityArea);
+        activityScroll.setBorder(
+                createPanelBorder("COMPILER ACTIVITY")
+        );
+        activityScroll.getViewport().setBackground(EDITOR_BG);
+
+        // EDITOR + ACTIVITY LAYOUT
+        JSplitPane editorActivitySplit = new JSplitPane(
+                JSplitPane.HORIZONTAL_SPLIT,
+                editorScroll,
+                activityScroll
+        );
+
+        editorActivitySplit.setResizeWeight(0.70);
+        editorActivitySplit.setDividerLocation(0.70);
+        editorActivitySplit.setBorder(null);
+        editorActivitySplit.setBackground(BG);
+        editorActivitySplit.setContinuousLayout(true);
+
+        // COMPILER OUTPUT
         outputArea = new JTextArea();
 
         outputArea.setEditable(false);
@@ -160,10 +206,10 @@ public class VelocisStudio {
                 new LineBorder(BORDER, 1, true),
                 new EmptyBorder(9, 12, 9, 12)
         ));
+
         sendButton = createButton(
                 "Send Input", GREEN, Color.BLACK
         );
-      //  sendButton.setEnabled(false);
 
         JPanel inputPanel = new JPanel(new BorderLayout(10, 0));
         inputPanel.setBackground(PANEL);
@@ -181,7 +227,20 @@ public class VelocisStudio {
         console.setOpaque(false);
         console.add(outputScroll, BorderLayout.CENTER);
         console.add(inputPanel, BorderLayout.SOUTH);
-        console.setPreferredSize(new Dimension(0, 260));
+        console.setPreferredSize(new Dimension(0, 240));
+
+        // MAIN WORKSPACE
+        JSplitPane workspace = new JSplitPane(
+                JSplitPane.VERTICAL_SPLIT,
+                editorActivitySplit,
+                console
+        );
+
+        workspace.setResizeWeight(0.65);
+        workspace.setDividerLocation(0.65);
+        workspace.setBorder(null);
+        workspace.setBackground(BG);
+        workspace.setContinuousLayout(true);
 
         // STATUS BAR
         JPanel statusBar = new JPanel(new BorderLayout());
@@ -201,10 +260,9 @@ public class VelocisStudio {
         statusBar.add(statusLabel, BorderLayout.WEST);
         statusBar.add(version, BorderLayout.EAST);
 
-        // MAIN LAYOUT
+        // COMPLETE LAYOUT
         root.add(header, BorderLayout.NORTH);
-        root.add(editorScroll, BorderLayout.CENTER);
-        root.add(console, BorderLayout.SOUTH);
+        root.add(workspace, BorderLayout.CENTER);
 
         JPanel complete = new JPanel(new BorderLayout(0, 10));
         complete.setBackground(BG);
@@ -259,23 +317,30 @@ public class VelocisStudio {
         sendButton.setEnabled(false);
         latestAST = null;
 
-        outputArea.setText("Starting Velocis compiler...\n");
+        outputArea.setText("");
+        activityArea.setText("Starting compiler...\n");
+
         statusLabel.setText("●  COMPILING...");
         statusLabel.setForeground(BLUE);
 
         Thread worker = new Thread(() -> {
 
             Path tempFile = null;
-            StringBuilder result = new StringBuilder();
+
+            StringBuilder standardOutput = new StringBuilder();
+            StringBuilder standardError = new StringBuilder();
 
             try {
                 tempFile = writeTemporarySource(source);
+
                 ProcessBuilder builder = new ProcessBuilder(
                         COMPILER_PATH,
                         "--ast",
                         tempFile.toAbsolutePath().toString()
                 );
-                builder.redirectErrorStream(true);
+
+                // Keep stdout and stderr separate.
+                builder.redirectErrorStream(false);
 
                 Process process = builder.start();
                 currentProcess = process;
@@ -284,30 +349,101 @@ public class VelocisStudio {
                         () -> sendButton.setEnabled(true)
                 );
 
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(
-                                process.getInputStream(),
-                                StandardCharsets.UTF_8
-                        ))) {
+                // Read stdout in a separate thread.
+                Thread outputReader = new Thread(() -> {
 
-                    String line;
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    process.getInputStream(),
+                                    StandardCharsets.UTF_8
+                            ))) {
 
-                    while ((line = reader.readLine()) != null) {
-                        result.append(line).append("\n");
+                        String line;
 
-                        String snapshot = result.toString();
+                        while ((line = reader.readLine()) != null) {
 
-                        SwingUtilities.invokeLater(
-                                () -> updateBuildOutput(snapshot)
+                            synchronized (standardOutput) {
+                                standardOutput.append(line).append("\n");
+                            }
+
+                            String snapshot;
+
+                            synchronized (standardOutput) {
+                                snapshot = standardOutput.toString();
+                            }
+
+                            SwingUtilities.invokeLater(
+                                    () -> updateBuildOutput(snapshot)
+                            );
+                        }
+
+                    } catch (IOException ex) {
+                        appendActivity(
+                                "Output stream error: " + ex.getMessage()
                         );
                     }
-                }
+
+                });
+
+                // Read stderr in another thread.
+                Thread errorReader = new Thread(() -> {
+
+                    try (BufferedReader reader = new BufferedReader(
+                            new InputStreamReader(
+                                    process.getErrorStream(),
+                                    StandardCharsets.UTF_8
+                            ))) {
+
+                        String line;
+
+                        while ((line = reader.readLine()) != null) {
+
+                            synchronized (standardError) {
+                                standardError.append(line).append("\n");
+                            }
+
+                            String snapshot;
+
+                            synchronized (standardError) {
+                                snapshot = standardError.toString();
+                            }
+
+                            SwingUtilities.invokeLater(
+                                    () -> updateActivity(snapshot)
+                            );
+                        }
+
+                    } catch (IOException ex) {
+                        appendActivity(
+                                "Activity stream error: " + ex.getMessage()
+                        );
+                    }
+
+                });
+
+                outputReader.start();
+                errorReader.start();
 
                 int exitCode = process.waitFor();
-                String finalResult = result.toString();
+
+                outputReader.join();
+                errorReader.join();
+
+                String finalOutput;
+                String finalActivity;
+
+                synchronized (standardOutput) {
+                    finalOutput = standardOutput.toString();
+                }
+
+                synchronized (standardError) {
+                    finalActivity = standardError.toString();
+                }
 
                 SwingUtilities.invokeLater(() -> {
-                    updateBuildOutput(finalResult);
+
+                    updateBuildOutput(finalOutput);
+                    updateActivity(finalActivity);
 
                     statusLabel.setText(
                             exitCode == 0
@@ -327,8 +463,13 @@ public class VelocisStudio {
             } catch (Exception ex) {
 
                 SwingUtilities.invokeLater(() -> {
+
                     outputArea.setText(
                             "Compiler connection failed:\n" + ex.getMessage()
+                    );
+
+                    activityArea.setText(
+                            "Compiler process could not be started."
                     );
 
                     statusLabel.setText("●  CONNECTION FAILED");
@@ -340,6 +481,7 @@ public class VelocisStudio {
                 });
 
             } finally {
+
                 if (tempFile != null) {
                     try {
                         Files.deleteIfExists(tempFile);
@@ -347,12 +489,14 @@ public class VelocisStudio {
                     }
                 }
             }
+
         });
 
         worker.setDaemon(true);
         worker.start();
     }
 
+    // DISPLAY STANDARD OUTPUT
     private static void updateBuildOutput(String result) {
 
         String startMarker = "----AST START----";
@@ -361,6 +505,8 @@ public class VelocisStudio {
         int start = result.indexOf(startMarker);
         int end = result.indexOf(endMarker);
 
+        StringBuilder display = new StringBuilder();
+
         if (start >= 0 && end > start) {
 
             latestAST = result.substring(
@@ -368,23 +514,47 @@ public class VelocisStudio {
                     end
             ).trim();
 
-            String before = result.substring(0, start).trim();
-            String after = result.substring(
-                    end + endMarker.length()
-            ).trim();
-
-            outputArea.setText(
-                    (before.isEmpty() ? "" : before + "\n\n") +
-                            after
+            display.append(
+                    result.substring(end + endMarker.length())
             );
 
-        } else {
-            outputArea.setText(result);
+        } else if (start < 0) {
+
+            display.append(result);
+
         }
+
+        // Remove the compiler banner from the output panel.
+        String cleanedOutput = display.toString()
+                .replace("Velocis Compiler.\n", "")
+                .trim();
+
+        outputArea.setText(cleanedOutput);
 
         outputArea.setCaretPosition(
                 outputArea.getDocument().getLength()
         );
+    }
+
+    // DISPLAY STANDARD ERROR / COMPILER ACTIVITY
+    private static void updateActivity(String result) {
+
+        activityArea.setText(result);
+
+        activityArea.setCaretPosition(
+                activityArea.getDocument().getLength()
+        );
+    }
+
+    private static void appendActivity(String message) {
+
+        SwingUtilities.invokeLater(() -> {
+            activityArea.append(message + "\n");
+
+            activityArea.setCaretPosition(
+                    activityArea.getDocument().getLength()
+            );
+        });
     }
 
     // LEXICAL ANALYSIS
@@ -438,6 +608,7 @@ public class VelocisStudio {
                     while ((line = reader.readLine()) != null) {
 
                         if (line.startsWith("TOKEN\t")) {
+
                             String[] parts = line.split("\t", 4);
 
                             if (parts.length == 4) {
@@ -447,7 +618,9 @@ public class VelocisStudio {
                                         parts[3]
                                 });
                             }
+
                         } else if (!line.equals("Velocis Compiler.")) {
+
                             diagnostics.append(line).append("\n");
                         }
                     }
@@ -459,6 +632,7 @@ public class VelocisStudio {
                 String finalDiagnostics = diagnostics.toString();
 
                 SwingUtilities.invokeLater(() -> {
+
                     LexicalAnalysisWindow window =
                             new LexicalAnalysisWindow(
                                     finalTokens,
@@ -482,6 +656,7 @@ public class VelocisStudio {
             } catch (Exception ex) {
 
                 SwingUtilities.invokeLater(() -> {
+
                     JOptionPane.showMessageDialog(
                             frame,
                             "Lexical analysis failed:\n" + ex.getMessage(),
@@ -494,6 +669,7 @@ public class VelocisStudio {
                 });
 
             } finally {
+
                 if (tempFile != null) {
                     try {
                         Files.deleteIfExists(tempFile);
@@ -501,6 +677,7 @@ public class VelocisStudio {
                     }
                 }
             }
+
         });
 
         worker.setDaemon(true);
@@ -521,11 +698,13 @@ public class VelocisStudio {
         }
 
         JFrame astFrame = new JFrame("Velocis Mini | AST Tree");
+        astFrame.setIconImage(frame.getIconImage());
         astFrame.setSize(850, 650);
         astFrame.setMinimumSize(new Dimension(600, 450));
         astFrame.setLocationRelativeTo(frame);
 
         JTextArea astArea = new JTextArea(latestAST);
+
         astArea.setEditable(false);
         astArea.setFont(new Font("Consolas", Font.PLAIN, 17));
         astArea.setForeground(TEXT);
@@ -578,6 +757,7 @@ public class VelocisStudio {
             inputField.setText("");
 
         } catch (IOException ex) {
+
             outputArea.append(
                     "\nCould not send input: " + ex.getMessage() + "\n"
             );
@@ -607,6 +787,7 @@ public class VelocisStudio {
     ) {
 
         JButton button = new JButton(text);
+
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
         button.setForeground(foreground);
         button.setBackground(background);

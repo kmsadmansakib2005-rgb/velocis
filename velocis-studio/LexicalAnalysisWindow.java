@@ -28,6 +28,11 @@ public class LexicalAnalysisWindow extends JFrame {
     ) {
 
         setTitle("Velocis Mini | Lexical Analysis");
+        setIconImage(
+                new ImageIcon(
+                        getClass().getResource("Velocis-icon.png")
+                ).getImage()
+        );
         setSize(900, 600);
         setMinimumSize(new Dimension(650, 400));
         setLocationRelativeTo(null);

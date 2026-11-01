@@ -16,7 +16,8 @@ typedef enum {
     AST_STRING,
     AST_ASSIGNMENT,
     AST_IF,
-    AST_DO_WHILE
+    AST_DO_WHILE,
+    AST_INPUT
 }ASTNodeType;
 
 typedef struct ASTNode

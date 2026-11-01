@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include "ast.h"
 
 typedef struct Scope
@@ -30,24 +31,21 @@ static SemanticScope *semantic_scope = NULL;
 static Variable *find_variable(const char *name);
 static void scope_push(void);
 static void scope_pop(void);
-static void set_variable_in_current_scope(
-    const char *name, DataType type, const char *value);
-
+static void set_variable_in_current_scope(const char *name, DataType type, const char *value);
 static SemanticSymbol *semantic_find_symbol(const char *name);
 static SemanticSymbol *semantic_find_current_symbol(const char *name);
 static void semantic_scope_push(void);
 static void semantic_scope_pop(void);
-static void semantic_add_symbol(
-    const char *name, DataType type, int line_number);
+static void semantic_add_symbol(const char *name, DataType type, int line_number);
 static void semantic_clear_symbols(void);
-
-static DataType semantic_get_expression_type(const ASTNode *node);
+static DataType semantic_get_expression_type(const ASTNode *node, DataType expected_type);
 static int semantic_analyze_node(const ASTNode *node);
 static int ast_is_boolean_expression(const ASTNode *node);
 static int ast_evaluate_float_expression(const ASTNode *node);
+static void ast_read_input(DataType type, char *text, size_t size);
+static float ast_evaluate_input(DataType type);
 
-ASTNode *ast_create(ASTNodeType type, const char *value,
-                    ASTNode *left, ASTNode *right, int line_number)
+ASTNode *ast_create(ASTNodeType type, const char *value, ASTNode *left, ASTNode *right, int line_number)
 {
     ASTNode *node = malloc(sizeof(ASTNode));
 
@@ -127,6 +125,9 @@ void ast_print(const ASTNode *node, int depth)
     case AST_DO_WHILE:
         printf("DO-WHILE (line: %d)\n", node->line_number);
         break;
+    case AST_INPUT:
+        printf("INPUT (line: %d)\n", node->line_number);
+        break;
     default:
         printf("UNKNOWN NODE (line: %d)\n", node->line_number);
         break;
@@ -186,7 +187,6 @@ static void scope_pop(void)
     }
 
     Scope *parent = current_scope->parent;
-
     free(current_scope);
     current_scope = parent;
 }
@@ -213,8 +213,7 @@ static Variable *find_variable(const char *name)
     return NULL;
 }
 
-static void set_variable_in_current_scope(
-    const char *name, DataType type, const char *value)
+static void set_variable_in_current_scope(const char *name, DataType type, const char *value)
 {
     if (name == NULL || value == NULL)
     {
@@ -270,19 +269,15 @@ static void set_variable_in_current_scope(
     case TYPE_INT:
         current->value.int_value = atoi(value);
         break;
-
     case TYPE_FLOAT:
-        current->value.float_value = (float)atof(value);
+        current->value.float_value = strtof(value, NULL);
         break;
-
     case TYPE_BOOL:
         current->value.bool_value = strcmp(value, "true") == 0;
         break;
-
     case TYPE_CHAR:
         current->value.char_value = value[0];
         break;
-
     case TYPE_STRING:
         current->value.string_value = strdup(value);
 
@@ -328,7 +323,7 @@ void ast_set_variable(const char *name, DataType type, const char *value)
         variable->value.int_value = atoi(value);
         break;
     case TYPE_FLOAT:
-        variable->value.float_value = (float)atof(value);
+        variable->value.float_value = strtof(value, NULL);
         break;
     case TYPE_BOOL:
         variable->value.bool_value = strcmp(value, "true") == 0;
@@ -387,8 +382,7 @@ int ast_evaluate(const ASTNode *node)
         if (variable->type == TYPE_BOOL)
             return variable->value.bool_value;
 
-        printf("Error: Expected an integer or boolean variable: %s\n",
-               node->value);
+        printf("Error: Expected an integer or boolean variable: %s\n", node->value);
         exit(1);
     }
 
@@ -399,8 +393,7 @@ int ast_evaluate(const ASTNode *node)
 
         if (variable->type != TYPE_INT)
         {
-            printf("Error: Integer assignment requires an integer variable: %s\n",
-                   node->value);
+            printf("Error: Integer assignment requires an integer variable: %s\n", node->value);
             exit(1);
         }
 
@@ -478,6 +471,9 @@ int ast_evaluate(const ASTNode *node)
         exit(1);
     }
 
+    case AST_INPUT:
+        return (int)ast_evaluate_input(TYPE_INT);
+
     default:
         printf("Error: Unsupported expression type!\n");
         exit(1);
@@ -495,7 +491,7 @@ float ast_evaluate_float(const ASTNode *node)
     switch (node->type)
     {
     case AST_FLOAT:
-        return (float)atof(node->value);
+        return strtof(node->value, NULL);
 
     case AST_INT:
         return (float)atoi(node->value);
@@ -514,8 +510,7 @@ float ast_evaluate_float(const ASTNode *node)
         if (variable->type == TYPE_BOOL)
             return variable->value.bool_value ? 1.0f : 0.0f;
 
-        printf("Error: Variable %s is not numeric or boolean.\n",
-               node->value);
+        printf("Error: Variable %s is not numeric or boolean.\n", node->value);
         exit(1);
     }
 
@@ -526,8 +521,7 @@ float ast_evaluate_float(const ASTNode *node)
 
         if (variable->type != TYPE_FLOAT)
         {
-            printf("Error: Float assignment requires a float variable: %s\n",
-                   node->value);
+            printf("Error: Float assignment requires a float variable: %s\n", node->value);
             exit(1);
         }
 
@@ -595,6 +589,9 @@ float ast_evaluate_float(const ASTNode *node)
         exit(1);
     }
 
+    case AST_INPUT:
+        return ast_evaluate_input(TYPE_FLOAT);
+
     default:
         printf("Error: Unsupported expression type!\n");
         exit(1);
@@ -616,23 +613,11 @@ static int ast_evaluate_float_expression(const ASTNode *node)
     }
 
     if (node->type == AST_BINARY)
-    {
-        if (strcmp(node->value, "<") == 0 ||
-            strcmp(node->value, ">") == 0 ||
-            strcmp(node->value, "<=") == 0 ||
-            strcmp(node->value, ">=") == 0 ||
-            strcmp(node->value, "==") == 0 ||
-            strcmp(node->value, "!=") == 0 ||
-            strcmp(node->value, "&&") == 0 ||
-            strcmp(node->value, "||") == 0)
-            return 0;
-
         return ast_evaluate_float_expression(node->left) ||
                ast_evaluate_float_expression(node->right);
-    }
 
     if (node->type == AST_UNARY)
-        return 0;
+        return ast_evaluate_float_expression(node->left);
 
     return 0;
 }
@@ -671,6 +656,83 @@ static int ast_is_boolean_expression(const ASTNode *node)
     return 0;
 }
 
+static void ast_read_input(DataType type, char *text, size_t size)
+{
+    printf("Enter value: ");
+
+    if (fgets(text, size, stdin) == NULL)
+    {
+        printf("Error: Failed to read input.\n");
+        exit(1);
+    }
+
+    text[strcspn(text, "\n")] = '\0';
+
+    char *end;
+    errno = 0;
+
+    switch (type)
+    {
+    case TYPE_INT:
+        strtol(text, &end, 10);
+
+        if (end == text || *end != '\0' || errno == ERANGE)
+        {
+            printf("Error: Invalid integer input.\n");
+            exit(1);
+        }
+        break;
+
+    case TYPE_FLOAT:
+        strtof(text, &end);
+
+        if (end == text || *end != '\0' || errno == ERANGE)
+        {
+            printf("Error: Invalid float input.\n");
+            exit(1);
+        }
+        break;
+
+    case TYPE_BOOL:
+        if (strcmp(text, "true") != 0 && strcmp(text, "false") != 0)
+        {
+            printf("Error: Enter true or false.\n");
+            exit(1);
+        }
+        break;
+
+    case TYPE_CHAR:
+        if (strlen(text) != 1)
+        {
+            printf("Error: Enter exactly one character.\n");
+            exit(1);
+        }
+        break;
+
+    case TYPE_STRING:
+        break;
+    }
+}
+
+static float ast_evaluate_input(DataType type)
+{
+    char text[64];
+
+    ast_read_input(type, text, sizeof(text));
+
+    if (type == TYPE_INT)
+        return (float)strtol(text, NULL, 10);
+
+    if (type == TYPE_FLOAT)
+        return strtof(text, NULL);
+
+    if (type == TYPE_BOOL)
+        return strcmp(text, "true") == 0 ? 1.0f : 0.0f;
+
+    printf("Error: Unsupported input type for numeric expression.\n");
+    exit(1);
+}
+
 void ast_execute(const ASTNode *node)
 {
     if (node == NULL)
@@ -688,8 +750,7 @@ void ast_execute(const ASTNode *node)
 
     case AST_DECLARATION:
     {
-        if (node->left == NULL || node->value == NULL ||
-            node->data_type == NULL)
+        if (node->left == NULL || node->value == NULL || node->data_type == NULL)
         {
             printf("Error: Invalid declaration!\n");
             exit(1);
@@ -718,14 +779,20 @@ void ast_execute(const ASTNode *node)
         switch (type)
         {
         case TYPE_INT:
-            snprintf(text, sizeof(text), "%d",
-                     ast_evaluate(node->left));
+            if (node->left->type == AST_INPUT)
+                ast_read_input(TYPE_INT, text, sizeof(text));
+            else
+                snprintf(text, sizeof(text), "%d", ast_evaluate(node->left));
+
             set_variable_in_current_scope(node->value, type, text);
             break;
 
         case TYPE_FLOAT:
-            snprintf(text, sizeof(text), "%.9g",
-                     (double)ast_evaluate_float(node->left));
+            if (node->left->type == AST_INPUT)
+                ast_read_input(TYPE_FLOAT, text, sizeof(text));
+            else
+                snprintf(text, sizeof(text), "%.9g", (double)ast_evaluate_float(node->left));
+
             set_variable_in_current_scope(node->value, type, text);
             break;
 
@@ -733,13 +800,19 @@ void ast_execute(const ASTNode *node)
         {
             int result;
 
+            if (node->left->type == AST_INPUT)
+            {
+                ast_read_input(TYPE_BOOL, text, sizeof(text));
+                set_variable_in_current_scope(node->value, TYPE_BOOL, text);
+                break;
+            }
+
             if (ast_evaluate_float_expression(node->left))
                 result = ast_evaluate_float(node->left) != 0.0f;
             else
                 result = ast_evaluate(node->left);
 
-            set_variable_in_current_scope(
-                node->value, TYPE_BOOL, result ? "true" : "false");
+            set_variable_in_current_scope(node->value, TYPE_BOOL, result ? "true" : "false");
             break;
         }
 
@@ -749,8 +822,8 @@ void ast_execute(const ASTNode *node)
                 printf("Error: Character initializer must be a character literal.\n");
                 exit(1);
             }
-            set_variable_in_current_scope(
-                node->value, TYPE_CHAR, node->left->value);
+
+            set_variable_in_current_scope(node->value, TYPE_CHAR, node->left->value);
             break;
 
         case TYPE_STRING:
@@ -759,8 +832,8 @@ void ast_execute(const ASTNode *node)
                 printf("Error: String initializer must be a string literal.\n");
                 exit(1);
             }
-            set_variable_in_current_scope(
-                node->value, TYPE_STRING, node->left->value);
+
+            set_variable_in_current_scope(node->value, TYPE_STRING, node->left->value);
             break;
         }
 
@@ -842,16 +915,12 @@ void ast_execute(const ASTNode *node)
 
         if (node->left->type == AST_FLOAT)
             printf("%g\n", atof(node->left->value));
-
         else if (node->left->type == AST_BOOL)
             printf("%s\n", node->left->value);
-
         else if (node->left->type == AST_CHAR)
             printf("%c\n", node->left->value[0]);
-
         else if (node->left->type == AST_STRING)
             printf("%s\n", node->left->value);
-
         else if (node->left->type == AST_IDENTIFIER)
         {
             Variable *variable = ast_get_variable(node->left->value);
@@ -865,8 +934,7 @@ void ast_execute(const ASTNode *node)
                 printf("%g\n", variable->value.float_value);
                 break;
             case TYPE_BOOL:
-                printf("%s\n",
-                       variable->value.bool_value ? "true" : "false");
+                printf("%s\n", variable->value.bool_value ? "true" : "false");
                 break;
             case TYPE_CHAR:
                 printf("%c\n", variable->value.char_value);
@@ -988,8 +1056,7 @@ static SemanticSymbol *semantic_find_symbol(const char *name)
     return NULL;
 }
 
-static void semantic_add_symbol(
-    const char *name, DataType type, int line_number)
+static void semantic_add_symbol(const char *name, DataType type, int line_number)
 {
     SemanticSymbol *symbol = malloc(sizeof(SemanticSymbol));
 
@@ -1020,7 +1087,7 @@ static void semantic_clear_symbols(void)
         semantic_scope_pop();
 }
 
-static DataType semantic_get_expression_type(const ASTNode *node)
+static DataType semantic_get_expression_type(const ASTNode *node, DataType expected_type)
 {
     if (node == NULL)
         return (DataType)-1;
@@ -1029,14 +1096,23 @@ static DataType semantic_get_expression_type(const ASTNode *node)
     {
     case AST_INT:
         return TYPE_INT;
+
     case AST_FLOAT:
         return TYPE_FLOAT;
+
     case AST_BOOL:
         return TYPE_BOOL;
+
     case AST_CHAR:
         return TYPE_CHAR;
+
     case AST_STRING:
         return TYPE_STRING;
+
+    case AST_INPUT:
+        if (expected_type == TYPE_INT || expected_type == TYPE_FLOAT || expected_type == TYPE_BOOL)
+            return expected_type;
+        return (DataType)-1;
 
     case AST_IDENTIFIER:
     {
@@ -1050,11 +1126,9 @@ static DataType semantic_get_expression_type(const ASTNode *node)
 
     case AST_UNARY:
     {
-        DataType operand_type =
-            semantic_get_expression_type(node->left);
+        DataType operand_type = semantic_get_expression_type(node->left, TYPE_BOOL);
 
-        if (strcmp(node->value, "!") == 0 &&
-            operand_type == TYPE_BOOL)
+        if (strcmp(node->value, "!") == 0 && operand_type == TYPE_BOOL)
             return TYPE_BOOL;
 
         return (DataType)-1;
@@ -1062,60 +1136,61 @@ static DataType semantic_get_expression_type(const ASTNode *node)
 
     case AST_BINARY:
     {
-        DataType left_type =
-            semantic_get_expression_type(node->left);
-        DataType right_type =
-            semantic_get_expression_type(node->right);
+        const char *op = node->value;
 
-        if (left_type == (DataType)-1 ||
-            right_type == (DataType)-1)
-            return (DataType)-1;
-
-        if (strcmp(node->value, "+") == 0 ||
-            strcmp(node->value, "-") == 0 ||
-            strcmp(node->value, "*") == 0 ||
-            strcmp(node->value, "/") == 0 ||
-            strcmp(node->value, "%") == 0)
+        if (strcmp(op, "&&") == 0 || strcmp(op, "||") == 0)
         {
-            if ((left_type != TYPE_INT && left_type != TYPE_FLOAT) ||
-                (right_type != TYPE_INT && right_type != TYPE_FLOAT))
+            DataType left_type = semantic_get_expression_type(node->left, TYPE_BOOL);
+            DataType right_type = semantic_get_expression_type(node->right, TYPE_BOOL);
+
+            if (left_type == TYPE_BOOL && right_type == TYPE_BOOL)
+                return TYPE_BOOL;
+
+            return (DataType)-1;
+        }
+
+        if (strcmp(op, "<") == 0 || strcmp(op, ">") == 0 ||
+            strcmp(op, "<=") == 0 || strcmp(op, ">=") == 0 ||
+            strcmp(op, "==") == 0 || strcmp(op, "!=") == 0)
+        {
+            DataType left_type = semantic_get_expression_type(node->left, TYPE_INT);
+            DataType right_type = semantic_get_expression_type(node->right, TYPE_INT);
+
+            if (left_type == (DataType)-1 || right_type == (DataType)-1)
                 return (DataType)-1;
 
-            if (strcmp(node->value, "%") == 0)
-            {
-                if (left_type != TYPE_INT || right_type != TYPE_INT)
-                    return (DataType)-1;
+            if ((left_type == TYPE_INT || left_type == TYPE_FLOAT) &&
+                (right_type == TYPE_INT || right_type == TYPE_FLOAT))
+                return TYPE_BOOL;
 
-                return TYPE_INT;
-            }
+            return (DataType)-1;
+        }
 
-            if (left_type == TYPE_FLOAT || right_type == TYPE_FLOAT)
-                return TYPE_FLOAT;
+        DataType left_type = semantic_get_expression_type(node->left, expected_type);
+        DataType right_type = semantic_get_expression_type(node->right, expected_type);
+
+        if (left_type == (DataType)-1 || right_type == (DataType)-1)
+            return (DataType)-1;
+
+        if ((left_type != TYPE_INT && left_type != TYPE_FLOAT) ||
+            (right_type != TYPE_INT && right_type != TYPE_FLOAT))
+            return (DataType)-1;
+
+        if (strcmp(op, "%") == 0)
+        {
+            if (left_type != TYPE_INT || right_type != TYPE_INT)
+                return (DataType)-1;
 
             return TYPE_INT;
         }
 
-        if (strcmp(node->value, "<") == 0 ||
-            strcmp(node->value, ">") == 0 ||
-            strcmp(node->value, "<=") == 0 ||
-            strcmp(node->value, ">=") == 0 ||
-            strcmp(node->value, "==") == 0 ||
-            strcmp(node->value, "!=") == 0)
+        if (strcmp(op, "+") == 0 || strcmp(op, "-") == 0 ||
+            strcmp(op, "*") == 0 || strcmp(op, "/") == 0)
         {
-            if ((left_type != TYPE_INT && left_type != TYPE_FLOAT) ||
-                (right_type != TYPE_INT && right_type != TYPE_FLOAT))
-                return (DataType)-1;
+            if (left_type == TYPE_FLOAT || right_type == TYPE_FLOAT)
+                return TYPE_FLOAT;
 
-            return TYPE_BOOL;
-        }
-
-        if (strcmp(node->value, "&&") == 0 ||
-            strcmp(node->value, "||") == 0)
-        {
-            if (left_type != TYPE_BOOL || right_type != TYPE_BOOL)
-                return (DataType)-1;
-
-            return TYPE_BOOL;
+            return TYPE_INT;
         }
 
         return (DataType)-1;
@@ -1141,19 +1216,15 @@ static int semantic_analyze_node(const ASTNode *node)
 
     if (node->type == AST_DECLARATION)
     {
-        if (node->left == NULL || node->value == NULL ||
-            node->data_type == NULL)
+        if (node->left == NULL || node->value == NULL || node->data_type == NULL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Invalid declaration!\n",
-                    node->line_number);
+            fprintf(stderr, "Semantic error at line %d: Invalid declaration!\n", node->line_number);
             return 0;
         }
 
         if (semantic_find_current_symbol(node->value) != NULL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Variable '%s' is already declared in this scope!\n",
+            fprintf(stderr, "Semantic error at line %d: Variable '%s' is already declared in this scope!\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1172,22 +1243,18 @@ static int semantic_analyze_node(const ASTNode *node)
             declared_type = TYPE_STRING;
         else
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Unknown declaration type!\n",
-                    node->line_number);
+            fprintf(stderr, "Semantic error at line %d: Unknown declaration type!\n", node->line_number);
             return 0;
         }
 
         if (!semantic_analyze_node(node->left))
             return 0;
 
-        DataType initializer_type =
-            semantic_get_expression_type(node->left);
+        DataType initializer_type = semantic_get_expression_type(node->left, declared_type);
 
         if (initializer_type != declared_type)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Initializer type does not match declared type for '%s'.\n",
+            fprintf(stderr, "Semantic error at line %d: Initializer type does not match declared type for '%s'.\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1205,8 +1272,7 @@ static int semantic_analyze_node(const ASTNode *node)
 
         if (symbol == NULL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Variable '%s' is not declared!\n",
+            fprintf(stderr, "Semantic error at line %d: Variable '%s' is not declared!\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1214,21 +1280,11 @@ static int semantic_analyze_node(const ASTNode *node)
         if (!semantic_analyze_node(node->right))
             return 0;
 
-        DataType expression_type =
-            semantic_get_expression_type(node->right);
+        DataType expression_type = semantic_get_expression_type(node->right, symbol->type);
 
-        if (expression_type == (DataType)-1)
+        if (expression_type != symbol->type)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Invalid assignment expression.\n",
-                    node->line_number);
-            return 0;
-        }
-
-        if (symbol->type != expression_type)
-        {
-            fprintf(stderr,
-                    "Semantic error at line %d: Cannot assign incompatible type to '%s'.\n",
+            fprintf(stderr, "Semantic error at line %d: Cannot assign incompatible type to '%s'.\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1240,8 +1296,7 @@ static int semantic_analyze_node(const ASTNode *node)
     {
         if (semantic_find_symbol(node->value) == NULL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Variable '%s' is not declared!\n",
+            fprintf(stderr, "Semantic error at line %d: Variable '%s' is not declared!\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1249,15 +1304,17 @@ static int semantic_analyze_node(const ASTNode *node)
         return 1;
     }
 
+    if (node->type == AST_INPUT)
+        return 1;
+
     if (node->type == AST_UNARY)
     {
         if (!semantic_analyze_node(node->left))
             return 0;
 
-        if (semantic_get_expression_type(node) == (DataType)-1)
+        if (semantic_get_expression_type(node, TYPE_BOOL) != TYPE_BOOL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Invalid operand for '%s'.\n",
+            fprintf(stderr, "Semantic error at line %d: Invalid operand for '%s'.\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1267,14 +1324,12 @@ static int semantic_analyze_node(const ASTNode *node)
 
     if (node->type == AST_BINARY)
     {
-        if (!semantic_analyze_node(node->left) ||
-            !semantic_analyze_node(node->right))
+        if (!semantic_analyze_node(node->left) || !semantic_analyze_node(node->right))
             return 0;
 
-        if (semantic_get_expression_type(node) == (DataType)-1)
+        if (semantic_get_expression_type(node, TYPE_INT) == (DataType)-1)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Invalid operands for '%s'.\n",
+            fprintf(stderr, "Semantic error at line %d: Invalid operands for '%s'.\n",
                     node->line_number, node->value);
             return 0;
         }
@@ -1287,10 +1342,9 @@ static int semantic_analyze_node(const ASTNode *node)
         if (!semantic_analyze_node(node->left))
             return 0;
 
-        if (semantic_get_expression_type(node->left) != TYPE_BOOL)
+        if (semantic_get_expression_type(node->left, TYPE_BOOL) != TYPE_BOOL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: If condition must be boolean.\n",
+            fprintf(stderr, "Semantic error at line %d: If condition must be boolean.\n",
                     node->line_number);
             return 0;
         }
@@ -1327,10 +1381,9 @@ static int semantic_analyze_node(const ASTNode *node)
         if (!semantic_analyze_node(node->right))
             return 0;
 
-        if (semantic_get_expression_type(node->right) != TYPE_BOOL)
+        if (semantic_get_expression_type(node->right, TYPE_BOOL) != TYPE_BOOL)
         {
-            fprintf(stderr,
-                    "Semantic error at line %d: Do-while condition must be boolean.\n",
+            fprintf(stderr, "Semantic error at line %d: Do-while condition must be boolean.\n",
                     node->line_number);
             return 0;
         }

@@ -1,9 +1,2 @@
-int a = 10
-int b = 20;
-
-print(a);
-
-int c = ;
-int d = 40;
-
-print(d);
+char c = 'a';
+print(c);

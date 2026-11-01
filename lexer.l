@@ -89,6 +89,12 @@ int lexical_error= 0;
 ","    { return COMMA; }
 
 
+\'([^\\'\n]|\\.)\' {
+    yylval.text = strdup(yytext + 1);
+    yylval.text[yyleng - 2] = '\0';
+    return CHAR_LITERAL;
+}
+
 \"([^\\\"\n]|\\.)*\"    {
     yylval.text = (char*)malloc(yyleng - 1);
     strncpy(yylval.text, yytext + 1, yyleng - 2);
@@ -107,6 +113,17 @@ int lexical_error= 0;
            yylineno);
 }
 
+\'([^\\'\n]|\\.)*\' {
+    lexical_error = 1;
+    printf("Lexical Error at line %d: Invalid character literal '%s'\n",
+           yylineno, yytext);
+}
+
+\'([^\\'\n]|\\.)* {
+    lexical_error = 1;
+    printf("Lexical Error at line %d: Unterminated character literal\n",
+           yylineno);
+}
 
 . {
     lexical_error = 1;

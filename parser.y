@@ -12,6 +12,7 @@
     int yylex(void);
     void yyerror(const char *s);
     extern int lexical_error;
+    extern FILE *yyin;
 %}
 
 %code requires {
@@ -31,6 +32,7 @@
 %token TRUE FALSE
 
 %token <text> INT_LITERAL FLOAT_LITERAL STRING_LITERAL IDENTIFIER
+%token <text> CHAR_LITERAL
 %type <node> program expression statement block block_statement
 
 %token EQ NE LE GE LT GT AND OR NOT ASSIGN
@@ -155,7 +157,11 @@ expression:
         {
             $$= ast_create(AST_FLOAT, $1, NULL, NULL,  @1.first_line);
         }
-
+        | CHAR_LITERAL 
+        {
+            $$ = ast_create(AST_CHAR, $1, NULL, NULL, @1.first_line);
+            free($1);
+        }
         |IDENTIFIER
         {
             $$= ast_create(AST_IDENTIFIER, $1, NULL, NULL,  @1.first_line);
@@ -232,6 +238,10 @@ expression:
             $$=ast_create(AST_STRING, $1, NULL, NULL, @1.first_line);
             free($1);
         }
+        |INPUT LPAREN RPAREN
+        {
+            $$= ast_create(AST_INPUT, NULL, NULL, NULL, @1.first_line);
+        }
         ;
 
 %%
@@ -246,11 +256,25 @@ void yyerror(const char *s)
     }
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
     printf("Velocis Compiler.\n");
 
+    if(argc<2)
+    {
+        printf("Usage: velocis <source_file.vls>\n");
+        return 1;
+    }
+    yyin= fopen(argv[1], "r");
+
+    if(yyin==NULL)
+    {
+        printf("Error: Cannot open the source file.\n");
+        return 1;
+    }
+
     int parse_status= yyparse();
+    fclose(yyin);
     
     if(parse_status==0 && lexical_error==0 &&syntax_error==0)
     {

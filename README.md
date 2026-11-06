@@ -30,7 +30,7 @@
 
 ```text
 int age = 20;
-string name = sakib;
+string name = "sakib";
 print(age + 5);
 ```
 
